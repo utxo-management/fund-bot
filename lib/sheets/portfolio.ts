@@ -75,15 +75,19 @@ export async function getPortfolioMetrics(options?: { skipCache?: boolean }): Pr
     const sheetId = config.sheets.portfolioSheetId;
     const data = await getSheetData(sheetId, SHEET_CONFIG.ranges.portfolioMetrics);
 
-    // Metrics start at row 78, so we need row 1 of the returned range (0-indexed)
+    // Range is Live Portfolio!A78:H98 → data[0] = row 78. The Portfolio Metrics
+    // block now starts at row 80 (was 79 before the sheet was reorganized), so
+    // data[2]..data[8] map to: Total AUM USD, Total AUM BTC, Bitcoin Delta,
+    // % Long, Net Cash, Total Borrow %, Extra BTC Exposure. If the sheet
+    // shifts again, update these indices and the cell labels in config/sheets.ts.
     const metrics = {
-      totalAUMUSD: parseNumber(data[1]?.[1], 'totalAUMUSD'),
-      totalAUMBTC: parseNumber(data[2]?.[1], 'totalAUMBTC'),
-      bitcoinDelta: parseNumber(data[3]?.[1], 'bitcoinDelta'),
-      percentLong: parsePercent(data[4]?.[1], 'percentLong'),
-      netCash: parseNumber(data[5]?.[1], 'netCash'),
-      totalBorrowPercent: parsePercent(data[6]?.[1], 'totalBorrowPercent'),
-      extraBTCExposure: parseNumber(data[7]?.[1], 'extraBTCExposure'),
+      totalAUMUSD: parseNumber(data[2]?.[1], 'totalAUMUSD'),
+      totalAUMBTC: parseNumber(data[3]?.[1], 'totalAUMBTC'),
+      bitcoinDelta: parseNumber(data[4]?.[1], 'bitcoinDelta'),
+      percentLong: parsePercent(data[5]?.[1], 'percentLong'),
+      netCash: parseNumber(data[6]?.[1], 'netCash'),
+      totalBorrowPercent: parsePercent(data[7]?.[1], 'totalBorrowPercent'),
+      extraBTCExposure: parseNumber(data[8]?.[1], 'extraBTCExposure'),
     };
 
     console.log(`[Portfolio] Metrics fetched: bitcoinDelta=${metrics.bitcoinDelta}, percentLong=${(metrics.percentLong * 100).toFixed(2)}%`);

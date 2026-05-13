@@ -24,14 +24,14 @@ export const SHEET_CONFIG = {
     fundMTD: 'E2',
     btcMTD: 'G2',
     
-    // Portfolio Metrics (rows 78-98)
-    totalAUMUSD: 'B79',
-    totalAUMBTC: 'B80',
-    bitcoinDelta: 'B81',
-    percentLong: 'B82',
-    netCash: 'B83',
-    totalBorrowPercent: 'B84',
-    extraBTCExposure: 'B85',
+    // Portfolio Metrics (rows 78-98; block label is row 79, values start row 80)
+    totalAUMUSD: 'B80',
+    totalAUMBTC: 'B81',
+    bitcoinDelta: 'B82',
+    percentLong: 'B83',
+    netCash: 'B84',
+    totalBorrowPercent: 'B85',
+    extraBTCExposure: 'B86',
   },
   
   // Category starting rows
