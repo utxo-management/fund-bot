@@ -105,6 +105,7 @@ export function buildMorningReportBlocks(
       `*FUND BRIEF*\n\n` +
       `AUM: ${fmtUsd(brief.fund.aumUsd)}\n` +
       `Fund MTD: ${fmtPct(brief.fund.mtdPct)}\n` +
+      `Fund YTD: ${fmtPct(brief.fund.ytdPct)}\n` +
       `BTC MTD: ${fmtPct(brief.btcMtdPct)}\n` +
       `Cash: ${fmtUsd(brief.fund.cashUsd)}`
     )
