@@ -1,6 +1,8 @@
 // Typed client for the terminal /api/brief endpoint.
 // Single source of truth for the EOD report payload.
 
+import { fetchTerminal, assertPercentUnits } from './client';
+
 export interface BriefHolding {
   name: string;
   ticker: string;
@@ -23,20 +25,15 @@ export interface Brief {
 }
 
 export async function fetchBrief(): Promise<Brief> {
-  const terminalApiUrl = process.env.TERMINAL_API_URL;
-  const briefApiKey = process.env.BRIEF_API_KEY;
+  const brief = await fetchTerminal<Brief>('/api/brief');
 
-  if (!terminalApiUrl || !briefApiKey) {
-    throw new Error('TERMINAL_API_URL and BRIEF_API_KEY must be set');
-  }
+  assertPercentUnits('Brief', [
+    ['btc.change1dPct', brief.btc?.change1dPct],
+    ['fund.change1dPct', brief.fund?.change1dPct],
+    ...(brief.topHoldings ?? []).map(
+      (h, i): [string, number | null | undefined] => [`topHoldings[${i}].change1dPct`, h.change1dPct]
+    ),
+  ]);
 
-  const res = await fetch(`${terminalApiUrl}/api/brief`, {
-    headers: { Authorization: `Bearer ${briefApiKey}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Brief API ${res.status}: ${await res.text()}`);
-  }
-
-  return (await res.json()) as Brief;
+  return brief;
 }

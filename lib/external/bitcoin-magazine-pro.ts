@@ -251,8 +251,8 @@ async function fetch1YMA(): Promise<{ price: number } | null> {
       return null;
     }
 
-    const data = await response.json();
-    const prices = data.prices as [number, number][];
+    const data = (await response.json()) as { prices?: [number, number][] };
+    const prices = data.prices;
 
     if (!prices || prices.length < 365) {
       console.warn(`[CoinGecko] Insufficient price data for 1Y MA: ${prices?.length || 0} days`);

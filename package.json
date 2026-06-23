@@ -7,6 +7,7 @@
     "dev": "vercel dev",
     "deploy": "vercel --prod",
     "type-check": "tsc --noEmit",
+    "test": "bun test",
     "lint": "eslint . --ext .ts,.tsx",
     "test:indicators": "ts-node test-market-indicators.ts",
     "test:env": "npx tsx test-env-config.ts",
