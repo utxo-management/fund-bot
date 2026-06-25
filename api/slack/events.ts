@@ -5,8 +5,8 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../../lib/config';
 import { LISTEN_ALL_CHANNELS } from '../../config/channels';
 import { postMessage, addReaction } from '../../lib/slack/client';
-import { getPortfolioSnapshot, getPortfolioMetrics, getTopPositions } from '../../lib/sheets/portfolio';
-import { sendMessage } from '../../lib/claude/client';
+import { getFundSummary } from '../../lib/terminal/summary';
+import { sendMessageWithTools } from '../../lib/claude/client';
 import { buildSystemPrompt } from '../../lib/claude/prompts';
 import { addMessageToThread, getThreadMessages, getThreadMessagesWithFallback, getThreadStats } from '../../lib/claude/memory';
 import {
@@ -24,7 +24,7 @@ import {
   setCachedResponse,
   hashContext,
 } from '../../lib/utils/response-cache';
-import { withTimeout, withTimeoutAll, TIMEOUTS } from '../../lib/utils/timeout';
+import { withTimeout, TIMEOUTS } from '../../lib/utils/timeout';
 
 // Event deduplication - track processed events
 const processedEvents = new Set<string>();
@@ -260,22 +260,17 @@ async function handleEvent(event: any) {
       return;
     }
 
-    // Fetch portfolio data (with timeout)
-    console.log('[Sheets] Fetching portfolio data...');
-    const [snapshot, metrics, topPositions] = await withTimeoutAll(
-      [
-        getPortfolioSnapshot(),
-        getPortfolioMetrics(),
-        getTopPositions(15), // Get top 15 positions
-      ],
+    // Fetch fund data from the terminal API (same source as the daily reports).
+    console.log('[Terminal] Fetching fund summary...');
+    const summary = await withTimeout(
+      getFundSummary(),
       TIMEOUTS.sheets,
-      'Portfolio data fetch'
+      'Terminal data fetch'
     );
-    console.log('[Sheets] Portfolio data fetched successfully');
-    console.log('[Sheets] Fetched', topPositions.length, 'positions');
+    console.log('[Terminal] Fund summary fetched successfully (asOf', summary.asOf, ')');
 
     // Create context hash for caching
-    const contextHash = hashContext({ snapshot, metrics });
+    const contextHash = hashContext({ summary });
     console.log('[Cache] Context hash:', contextHash);
 
     // Check cache first (only for non-threaded conversations)
@@ -303,11 +298,7 @@ async function handleEvent(event: any) {
 
     // Build system prompt
     console.log('[Claude] Building system prompt...');
-    const systemPrompt = buildSystemPrompt({ 
-      snapshot, 
-      metrics,
-      positions: topPositions,
-    });
+    const systemPrompt = buildSystemPrompt({ summary });
     console.log('[Claude] System prompt built');
 
     // Get conversation history if in a thread (with Slack fallback for cold starts)
@@ -317,10 +308,12 @@ async function handleEvent(event: any) {
       console.log('[Memory] Thread stats:', threadStats);
     }
 
-    // Send to Claude (with timeout)
-    console.log('[Claude] Sending message to Claude API...');
+    // Send to Claude with on-demand tool-use (with timeout). The tool loop
+    // fetches fresh terminal data when Claude requests it; a failing tool
+    // degrades gracefully (Claude answers with what it has) rather than crashing.
+    console.log('[Claude] Sending message to Claude API (tool-use)...');
     const result = await withTimeout(
-      sendMessage(systemPrompt, sanitizedText, conversationHistory),
+      sendMessageWithTools(systemPrompt, sanitizedText, conversationHistory),
       TIMEOUTS.claude,
       'Claude API call'
     );

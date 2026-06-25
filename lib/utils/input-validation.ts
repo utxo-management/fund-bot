@@ -160,30 +160,30 @@ export function isHelpRequest(text: string): boolean {
  * Generate help message
  */
 export function getHelpMessage(): string {
-  return `Hi! I'm FundBot, here to help you with portfolio and market data. Here's what you can ask me:
+  return `Hi! I'm FundBot, here to help you with fund and market data. Here's what you can ask me:
 
-*📊 Portfolio Questions:*
+*📊 Fund Performance:*
 • "What's our current AUM?"
-• "Show me our month-to-date performance"
-• "What are our top positions?"
-• "What's our Bitcoin exposure?"
+• "How are we doing month-to-date?"
+• "What's our YTD return?"
+• "How much net cash do we have?"
+• "How are we doing versus Bitcoin?" (alpha)
 
-*💰 Position Analysis:*
-• "Tell me about our [ticker] position"
-• "Which equities are trading at a premium?"
-• "What's our portfolio concentration?"
-• "How much cash do we have?"
+*📋 Top Holdings:*
+• "What are our top holdings?"
+• "What are our biggest positions' weights?"
+• "Which top holdings moved today?"
 
-*📈 Market Context:*
+*📈 Bitcoin:*
 • "What's Bitcoin's price?"
-• "Show me BTCTC companies by mNAV"
-• "Which holdings have the best performance?"
+• "What's BTC's 1-day move?"
+• "What's BTC month-to-date?"
 
 *💡 Tips:*
-• I have access to real-time data from your Google Sheets
-• I can remember context within a thread
-• Ask follow-up questions for deeper analysis
-• I provide insights on risk metrics and concentration
+• My data comes from the 210k terminal — the same source as the daily reports
+• Every answer is stamped with an "as of" time
+• I can remember context within a thread, so ask follow-ups
+• Not yet available: arbitrary per-ticker lookups, the full position list, treasury-company (BTCTC) data, and on-chain metrics
 
 Just ask me naturally - I'm here to help! 🚀`;
 }

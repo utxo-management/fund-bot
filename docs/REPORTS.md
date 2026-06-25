@@ -2,6 +2,28 @@
 
 The fund-bot sends two automated daily reports to the `#daily-reports` Slack channel on weekdays.
 
+## Data flow (current)
+
+Fund figures (AUM, performance, holdings, BTC price) come from the **210k terminal API**, fetched through the shared client in `lib/terminal/`:
+
+- `fetchMorningBrief()` → `GET {TERMINAL_API_URL}/api/morning-brief` (morning report)
+- `fetchBrief()` → `GET {TERMINAL_API_URL}/api/brief` (EOD report)
+
+Both authenticate with `Authorization: Bearer ${BRIEF_API_KEY}` and run the
+`assertPercentUnits` guard, which fails loudly if any percent field exceeds
+±100% (catching the June 2026 100× scaling regression). The terminal is the
+single source of truth — the report path does **not** read Google Sheets,
+Supabase, CoinMarketCap, Twelve Data, or Yahoo Finance.
+
+On-chain metrics (Fear & Greed, MVRV, NUPL, funding rate, moving averages) are
+the one exception: they still come directly from Bitcoin Magazine Pro
+(`lib/external/bitcoin-magazine-pro.ts`). That fetch is wrapped in `.catch()` so
+a BM Pro outage degrades to "section omitted" rather than failing the report.
+
+> The conversational Q&A path in `#ask-fundbot` (`api/slack/events.ts`) reads
+> from the **same terminal API** via `lib/terminal/summary.ts` and exposes it to
+> Claude as on-demand tools. See `docs/ARCHITECTURE.md`.
+
 ---
 
 ## Morning Report
@@ -44,17 +66,22 @@ Cash: $10,500,000
 
 | Metric | Source | API |
 |--------|--------|-----|
-| BTC Price | Google Sheets | Portfolio Sheet |
-| Fear & Greed | Bitcoin Magazine Pro | Requires API key |
+| BTC Price | Terminal API | `GET /api/morning-brief` (Bearer `BRIEF_API_KEY`) |
+| AUM | Terminal API | `GET /api/morning-brief` |
+| Fund MTD | Terminal API | `GET /api/morning-brief` |
+| Fund YTD | Terminal API | `GET /api/morning-brief` |
+| BTC MTD | Terminal API | `GET /api/morning-brief` |
+| Cash | Terminal API | `GET /api/morning-brief` |
+| Fear & Greed | Bitcoin Magazine Pro | Requires API key (`BM_PRO_API_KEY`) |
 | MVRV Z-Score | Bitcoin Magazine Pro | Requires API key |
 | NUPL | Bitcoin Magazine Pro | Requires API key |
 | Funding Rate | Bitcoin Magazine Pro | Requires API key |
 | 1Y MA | CoinGecko | Free, calculated from 365D prices |
 | 200W MA | Bitcoin Magazine Pro | Requires API key |
-| AUM | Google Sheets | Live Portfolio tab |
-| Fund MTD | Google Sheets | Portfolio Sheet |
-| BTC MTD | Google Sheets | Portfolio Sheet |
-| Cash | Google Sheets | Category breakdown (totalValue) |
+
+> All fund/BTC percent fields from the terminal are already ×100-scaled (e.g.
+> `-4.2` = -4.2%); the client appends `%` without re-scaling and asserts the
+> units guard.
 
 ### Metric Descriptions
 
@@ -79,7 +106,9 @@ npx tsx -r dotenv/config run-morning-report.ts
 
 - Cron handler: `api/cron/morning-report.ts`
 - Manual script: `run-morning-report.ts`
-- Bitcoin Magazine Pro client: `lib/external/bitcoin-magazine-pro.ts`
+- Terminal client: `lib/terminal/morning-brief.ts` (+ shared `lib/terminal/client.ts`)
+- Block builder: `lib/slack/blocks.ts` (`buildMorningReportBlocks`)
+- Bitcoin Magazine Pro client (on-chain): `lib/external/bitcoin-magazine-pro.ts`
 
 ---
 
@@ -130,31 +159,26 @@ See you tomorrow
 
 | Metric | Source | API |
 |--------|--------|-----|
-| BTC Price | Google Sheets | Portfolio Sheet |
-| AUM | Google Sheets | Live Portfolio tab |
-| Fund 1D | Supabase | Morning snapshot comparison |
-| BTC 1D | CoinMarketCap | 24h change |
-| Top Holdings | Google Sheets | Live Portfolio tab |
-| Stock 1D % | Yahoo Finance / Twelve Data | Real-time quotes |
+| BTC Price | Terminal API | `GET /api/brief` (Bearer `BRIEF_API_KEY`) |
+| AUM | Terminal API | `GET /api/brief` |
+| Fund 1D | Terminal API | `GET /api/brief` (computed server-side) |
+| BTC 1D | Terminal API | `GET /api/brief` |
+| Top Holdings | Terminal API | `GET /api/brief` (`topHoldings`, with weight + 1D) |
 | On-Chain Metrics | Bitcoin Magazine Pro | Fear & Greed, MVRV, NUPL, FR, 200W MA |
 | 1Y MA | CoinGecko | Free, calculated from 365D prices |
 
 ### How Fund 1D is Calculated
 
-1. **Morning Snapshot:** At 9 AM CT, the morning report saves the current AUM to Supabase
-2. **EOD Comparison:** At 6 PM CT, the EOD report fetches the morning snapshot and calculates:
-   ```
-   Fund 1D = (Current AUM - Morning AUM) / Morning AUM
-   ```
+Fund 1D is computed **server-side by the terminal** and returned in the
+`/api/brief` payload as `fund.change1dPct` (already ×100-scaled). The bot no
+longer stores its own morning AUM snapshot — there is no Supabase snapshot step.
 
 ### How Top Holdings Work
 
-1. **Holdings Source:** Fetched from the "Live Portfolio" sheet, filtering for "Equities" category
-2. **Ticker Mapping:** Company names are mapped to tickers using the "210k PortCos" sheet in the BTCTCs Master Sheet
-3. **Real-time Quotes:**
-   - First tries Twelve Data (works for US stocks)
-   - Falls back to Yahoo Finance (works for international: .HK, .BK, .V, .AX, etc.)
-4. **Display:** Top 3 holdings by value, showing company name and 1D % change
+The `/api/brief` payload includes a `topHoldings` array (the fund's largest
+BTC-equity positions) already enriched with `weightPercent` and `change1dPct`.
+The EOD report renders the top entries directly — no separate Google Sheets
+lookup, ticker mapping, or third-party quote fetch is involved.
 
 ### Manual Testing
 
@@ -170,12 +194,8 @@ npx tsx -r dotenv/config run-eod-report.ts
 
 - Cron handler: `api/cron/eod-report.ts`
 - Manual script: `run-eod-report.ts`
-- Equities data: `lib/sheets/equities.ts`
-- Portfolio data: `lib/sheets/portfolio.ts`
-- Supabase client: `lib/supabase/client.ts`
-- CoinMarketCap client: `lib/external/coinmarketcap.ts`
-- Twelve Data client: `lib/external/twelvedata.ts`
-- Yahoo Finance client: `lib/external/yahoo-finance.ts`
+- Terminal client: `lib/terminal/brief.ts` (+ shared `lib/terminal/client.ts`)
+- Block builder: `lib/slack/blocks.ts` (`buildEodReportBlocks`)
 - On-chain metrics (incl. 1Y MA): `lib/external/bitcoin-magazine-pro.ts`
 
 ---
@@ -188,23 +208,21 @@ Both reports require these environment variables:
 # Core
 SLACK_BOT_TOKEN=xoxb-...
 DAILY_REPORTS_CHANNEL_ID=C...
-GOOGLE_SERVICE_ACCOUNT_EMAIL=...
-GOOGLE_PRIVATE_KEY=...
-PORTFOLIO_SHEET_ID=...
-BTCTC_SHEET_ID=...
 
-# Morning Report
+# Terminal API (fund/holdings data — both reports + the Q&A bot)
+TERMINAL_API_URL=https://terminal.utxomanagement.com
+BRIEF_API_KEY=...
+
+# On-chain metrics (morning + EOD)
 BM_PRO_API_KEY=...  # Bitcoin Magazine Pro
-
-# EOD Report
-SUPABASE_URL=https://...supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-COINMARKETCAP_API_KEY=...
-TWELVEDATA_API_KEY=...
 
 # Cron Authentication
 CRON_SECRET=...
 ```
+
+> The terminal API supplies all fund/holdings figures for both reports. The
+> Supabase, CoinMarketCap, Twelve Data, and Yahoo Finance variables are no
+> longer used by the report path.
 
 ---
 
@@ -217,17 +235,15 @@ CRON_SECRET=...
 3. Confirm `DAILY_REPORTS_CHANNEL_ID` is correct
 4. Ensure bot is invited to the channel
 
-### Fund 1D showing N/A
+### Fund 1D / AUM / holdings showing N/A
 
-- Morning snapshot may not exist for today
-- Check Supabase `daily_snapshots` table
-- Run morning report first to create snapshot
-
-### Holdings showing N/A
-
-- Ticker not found in mapping (check "210k PortCos" sheet)
-- Stock exchange not supported by Yahoo Finance
-- API rate limit reached
+- The terminal `/api/brief` response returned `null` for that field (e.g. no
+  EOD AUM snapshot yet today on the terminal side)
+- `BRIEF_API_KEY` invalid/expired, or `TERMINAL_API_URL` misconfigured (a 401/
+  4xx from the terminal surfaces as a thrown error in the report)
+- Units guard tripped: if a percent field exceeds ±100% the client throws
+  `units check failed` — this signals a scaling regression upstream, not a
+  display bug
 
 ### On-chain metrics showing N/A
 

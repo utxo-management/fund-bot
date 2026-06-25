@@ -1,6 +1,6 @@
 # 🤖 210k Fund Bot
 
-A Claude-powered Slack bot that provides conversational access to fund data from Google Sheets, plus automated daily reports for 210k Capital.
+A Claude-powered Slack bot that provides conversational access to fund data from the 210k terminal API, plus automated daily reports for 210k Capital.
 
 ## 🌟 Features
 
@@ -8,8 +8,7 @@ A Claude-powered Slack bot that provides conversational access to fund data from
 - **Daily Reports**: Automated morning (9 AM CT) and end-of-day (6 PM CT) reports
 - **Market Indicators**: Real-time Fear & Greed, MVRV, NUPL, Funding Rate, and 200W MA via Bitcoin Magazine Pro
 - **Thread Memory**: Maintains context within conversation threads for follow-up questions
-- **Real-time Data**: Fetches live data from Google Sheets on every query
-- **BTCTC Market Data**: Tracks Bitcoin treasury company performance
+- **Real-time Data**: Fetches live fund data from the 210k terminal API (the same source as the daily reports) and can fetch on demand via Claude tool-use
 
 ## 🏗️ Architecture
 
@@ -161,25 +160,30 @@ Go to your Vercel project settings:
 
 ### Conversational Queries
 
-**In any channel (with @mention):**
+FundBot answers from the **210k terminal API** — the same source as the daily
+reports — and stamps every answer with an "as of" time. It can call tools to
+fetch live data on demand (`get_fund_summary`, `get_top_holdings`).
+
+**What it can answer today:**
 ```
 @FundBot What's our current AUM?
-@FundBot What's our BTC delta?
-@FundBot Top 5 holdings by weight?
+@FundBot How are we doing month-to-date? Year-to-date?
+@FundBot How are we doing versus Bitcoin? (alpha)
+@FundBot How much net cash do we have?
+@FundBot What's Bitcoin's price / 1-day / month-to-date move?
+@FundBot What are our top holdings and their weights?
+@FundBot Which top holdings moved today?
 ```
 
-**In DMs:**
-```
-What's our Metaplanet position worth?
-How are we doing MTD vs BTC?
-Which equity position has gained the most?
-```
+Works via `@mention` in any channel, in DMs, or by posting in `#ask-fundbot`.
 
-**In #ask-fundbot channel:**
-```
-What's Strategy's mNAV?
-Biggest BTCTC movers today?
-```
+**Not yet available** (the terminal does not currently expose these over the
+bot's API key — tracked for a follow-up; see the PR's deferred list):
+
+- Arbitrary per-ticker position lookups (e.g. "what's our Metaplanet position worth?")
+- The full position list / portfolio concentration beyond top holdings
+- Treasury-company (BTCTC) market data and mNAV (e.g. "biggest BTCTC movers", "Strategy's mNAV")
+- On-chain metrics in the Q&A path (these still appear in the daily reports)
 
 ### Daily Reports
 
