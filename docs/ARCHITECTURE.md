@@ -68,7 +68,6 @@ fund-bot/
 │   │
 │   ├── sheets/                   # Google Sheets integration
 │   │   ├── client.ts             # Base Sheets API client
-│   │   ├── portfolio.ts          # Portfolio data fetching
 │   │   ├── btctc.ts              # Bitcoin Treasury Company data
 │   │   └── equities.ts           # Equity holdings tracking
 │   │
@@ -217,33 +216,6 @@ Handles authentication and data fetching:
 - Service account authentication (read-only scope)
 - Automatic handling of problematic values (`#N/A`, `#REF!`, `#ERROR!`, `Loading...`)
 - Retry logic with 2-second delays for incomplete data
-
-#### Portfolio Data (`portfolio.ts`)
-
-Primary data source for fund information:
-
-```typescript
-getPortfolioSnapshot()    // AUM, BTC price, fund/BTC performance
-getPortfolioMetrics()     // Delta, cash, leverage, borrow %
-getAllPositions()         // All holdings by category
-getTopPositions(limit)    // Highest value positions
-getCategoryBreakdown()    // Group by position type
-```
-
-**Position Categories**:
-- BTC Spot
-- BTC DeFi
-- BTC Derivatives
-- BTC Equities
-- BTC Fungibles
-- Alt Tokens
-- Fund Investments
-- Cash
-
-**Caching**:
-- 5-minute TTL for portfolio data
-- Graceful degradation to last-known values
-- Per-function cache keys
 
 #### BTCTC Data (`btctc.ts`)
 
