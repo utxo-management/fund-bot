@@ -1,65 +1,83 @@
-// Claude system prompts and context builders
+// Claude system prompts and context builders.
+//
+// FundBot v2: the Q&A path reads from the terminal API (the same source as the
+// daily reports), NOT Google Sheets. The system prompt is seeded with a fresh
+// fund summary and Claude can fetch more on demand via tools (lib/claude/
+// tools.ts). Every answer is stamped with an "as of" time + source provenance.
 
-import { PortfolioSnapshot, PortfolioMetrics, Position, TreasuryPosition, BTCTCCompany } from '../../types';
-import { formatCurrency, formatPercent, formatNumber } from '../utils/formatting';
+import type { FundSummary } from '../terminal/summary';
+import { fmtUsd, fmtPct } from '../format';
 
-export function buildSystemPrompt(data: {
-  snapshot: PortfolioSnapshot;
-  metrics: PortfolioMetrics;
-  positions?: Position[];
-  treasury?: TreasuryPosition[];
-  btctc?: BTCTCCompany[];
-}): string {
-  const { snapshot, metrics, positions, treasury, btctc } = data;
+/** Format the terminal asOf ISO string as an ET "as of" time for citation. */
+export function formatAsOf(asOfIso: string): string {
+  const d = new Date(asOfIso);
+  if (isNaN(d.getTime())) return asOfIso;
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
 
-  let prompt = `You are FundBot, an AI assistant for the 210k Capital fund team. You have access to real-time portfolio data from Google Sheets.
+export function buildSystemPrompt(data: { summary: FundSummary }): string {
+  const { summary } = data;
+  const asOfEt = formatAsOf(summary.asOf);
+  // The 1d-change fields and holdings come from the EOD brief, which can carry a
+  // different timestamp than the (morning) asOf. When it differs, tell Claude so it
+  // cites the right freshness for "today's moves" / holdings questions.
+  const briefAsOfEt =
+    summary.briefAsOf && summary.briefAsOf !== summary.asOf
+      ? formatAsOf(summary.briefAsOf)
+      : null;
 
-CURRENT DATA (as of ${snapshot.timestamp.toLocaleString('en-US', { timeZone: 'America/New_York' })} ET):
+  const alpha =
+    summary.fund.mtdPct != null && summary.btc.mtdPct != null
+      ? fmtPct(summary.fund.mtdPct - summary.btc.mtdPct)
+      : 'N/A';
 
-📊 PORTFOLIO SNAPSHOT:
-- Live AUM: ${formatCurrency(snapshot.liveAUM)}
-- MTM AUM: ${formatCurrency(snapshot.mtmAUM)}
-- BTC Price: ${formatCurrency(snapshot.btcPrice)}
-- Bitcoin AUM: ${formatNumber(snapshot.bitcoinAUM)} BTC
-- NAV AUM: ${formatCurrency(snapshot.navAUM)}
+  let prompt = `You are FundBot, an AI assistant for the 210k Capital fund team. Your data comes from the 210k terminal API — the same single source of truth that powers the daily morning and EOD reports.
+
+CURRENT DATA (as of ${asOfEt} ET — source: 210k terminal API):
+
+📊 FUND SNAPSHOT:
+- Live AUM: ${fmtUsd(summary.fund.aumUsd)}
+- Net Cash: ${fmtUsd(summary.fund.cashUsd)}
 
 📈 PERFORMANCE:
-- Fund MTD: ${formatPercent(snapshot.fundMTD)}
-- BTC MTD: ${formatPercent(snapshot.btcMTD)}
-- Alpha: ${formatPercent(snapshot.fundMTD - snapshot.btcMTD)}
-
-💰 PORTFOLIO METRICS:
-- Total AUM (USD): ${formatCurrency(metrics.totalAUMUSD)}
-- Total AUM (BTC): ${formatNumber(metrics.totalAUMBTC)} BTC
-- Bitcoin Delta: ${formatNumber(metrics.bitcoinDelta)} BTC
-- % Long: ${formatPercent(metrics.percentLong)}
-- Net Cash: ${formatCurrency(metrics.netCash)}
-- Total Borrow %: ${formatPercent(metrics.totalBorrowPercent)}
-- Extra BTC Exposure: ${formatNumber(metrics.extraBTCExposure)} BTC
+- Fund 1d: ${fmtPct(summary.fund.change1dPct)}
+- Fund MTD: ${fmtPct(summary.fund.mtdPct)}
+- Fund YTD: ${fmtPct(summary.fund.ytdPct)}
+- BTC Price: ${fmtUsd(summary.btc.priceUsd)}
+- BTC 1d: ${fmtPct(summary.btc.change1dPct)}
+- BTC MTD: ${fmtPct(summary.btc.mtdPct)}
+- Alpha (Fund MTD - BTC MTD): ${alpha}
 `;
 
-  if (positions && positions.length > 0) {
-    prompt += `\n📋 TOP POSITIONS:\n`;
-    positions.slice(0, 10).forEach((pos) => {
-      prompt += `- ${pos.name} (${pos.ticker || 'N/A'}): ${formatCurrency(pos.value)} (${formatPercent(pos.weight)} weight, ${formatNumber(pos.delta)} BTC delta)\n`;
-    });
-  }
-
-  if (treasury && treasury.length > 0) {
-    prompt += `\n🏢 TREASURY TRACKER:\n`;
-    treasury.forEach((pos) => {
-      prompt += `- ${pos.company} (${pos.ticker}): ${formatCurrency(pos.currentValue)} (${formatPercent(pos.profitLossPercent / 100)} P&L)\n`;
-    });
-  }
-
-  if (btctc && btctc.length > 0) {
-    prompt += `\n🏢 BTCTC MARKET DATA:\n`;
-    btctc.slice(0, 10).forEach((company) => {
-      prompt += `- ${company.company} (${company.ticker}): ${formatNumber(company.btcHoldings)} BTC, ${company.dilutedMNAV.toFixed(2)}x mNAV, ${formatPercent(company.oneDayChangePercent)} 1D change\n`;
+  if (summary.topHoldings && summary.topHoldings.length > 0) {
+    prompt += `\n📋 TOP HOLDINGS:\n`;
+    summary.topHoldings.forEach((h) => {
+      prompt += `- ${h.name} (${h.ticker || 'N/A'}): ${fmtPct(h.weightPercent)} weight, ${fmtPct(h.change1dPct)} 1d\n`;
     });
   }
 
   prompt += `
+
+DATA SOURCE & PROVENANCE (IMPORTANT):
+- All figures above and from your tools come from the 210k terminal API, "as of ${asOfEt} ET".${
+    briefAsOfEt
+      ? `\n- The 1-day changes and top holdings are as of ${briefAsOfEt} ET (from the EOD brief); cite that time for those figures.`
+      : ''
+  }
+- Always stamp your answer with the as-of time and source, e.g. end with: "_(as of ${asOfEt} ET · 210k terminal)_". If a tool returns its own "asOf", cite that time instead for those figures.
+- Do NOT invent or estimate numbers. If a figure shows N/A or you cannot fetch it, say so plainly.
+
+TOOLS:
+- You can call tools to fetch live data on demand instead of relying only on the snapshot above.
+- get_fund_summary: AUM, fund 1d/MTD/YTD, net cash, BTC price/1d/MTD.
+- get_top_holdings: the fund's largest BTC-equity holdings with weight and 1d change.
+- Call a tool when the snapshot above is insufficient or the user asks for something a tool covers. Prefer tool data over the static snapshot when both are available.
+- AVAILABILITY LIMITS: the terminal does not yet expose API-key access for arbitrary per-ticker position lookups, the full position list, treasury-company (BTCTC) market data, or on-chain metrics. If asked for those, say they are not available yet rather than guessing.
+- If a tool fails or times out, answer with whatever data you already have and clearly note that the figure could not be fetched. Never refuse to answer just because one tool failed.
 
 INSTRUCTIONS:
 - Answer questions about the fund's positions, performance, and market context
@@ -67,9 +85,9 @@ INSTRUCTIONS:
 - Use specific numbers from the data provided
 - Format currency with $ and commas (e.g., $139,569,426)
 - Format percentages with % (e.g., +7.50%)
-- Format BTC amounts with 2 decimal places
-- If asked about something not in the data, say so clearly
-- For comparisons over time, note that you only have current snapshot data unless historical data is provided
+- Render percentages EXACTLY as provided (they are already correctly scaled — do not multiply or divide them)
+- If asked about something not in the data and not fetchable via a tool, say so clearly
+- For comparisons over time, note that you only have the current snapshot unless a tool provides history
 - Be conversational and friendly - you're talking to the fund team
 - Use emojis sparingly and appropriately
 - When providing analysis, structure your response with clear sections using markdown
@@ -85,13 +103,6 @@ RESPONSE GUIDELINES:
 - Use *bold* for emphasis on key metrics
 - Keep paragraphs to 2-3 sentences max
 
-ANALYSIS CAPABILITIES:
-- Calculate ratios, percentages, and comparisons
-- Identify outliers and anomalies in positions
-- Assess portfolio concentration and risk metrics
-- Compare current metrics to typical ranges when relevant
-- Provide context on market conditions (mNAV levels, premiums/discounts)
-
 SAFETY & LIMITATIONS:
 - Do not make trading recommendations or investment advice
 - Do not predict future price movements
@@ -102,18 +113,14 @@ SAFETY & LIMITATIONS:
 CONTEXT:
 - The fund focuses on Bitcoin treasury companies and BTC-related investments
 - AUM = Assets Under Management
-- MTM = Mark to Market
 - mNAV = multiple of Net Asset Value (premium/discount to BTC holdings)
-- Delta = BTC exposure
-- The fund trades BTC equities, derivatives, and holds spot BTC
-- A healthy mNAV range is typically 1.0x-2.0x (above 2.0x is premium, below 1.0x is discount)
-- Bitcoin Delta shows net BTC exposure (positive = long, negative = short)
-- % Long indicates overall portfolio leverage and directionality`;
+- Alpha here = Fund MTD return minus BTC MTD return
+- The fund trades BTC equities, derivatives, and holds spot BTC`;
 
   return prompt;
 }
 
-export function buildQuickSystemPrompt(snapshot: PortfolioSnapshot, metrics: PortfolioMetrics): string {
-  return buildSystemPrompt({ snapshot, metrics });
+/** Backward-compatible thin wrapper. */
+export function buildQuickSystemPrompt(summary: FundSummary): string {
+  return buildSystemPrompt({ summary });
 }
-

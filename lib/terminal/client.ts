@@ -25,18 +25,31 @@ export async function fetchTerminal<T>(path: string): Promise<T> {
 // Units contract: the terminal API returns every percent field ×100-scaled
 // (e.g. -4.2 for -4.2%). fmtPct appends "%" WITHOUT scaling, so the API must do it.
 // This catches the double-multiply direction only: if the API and the client both
-// scale, -4.2 becomes -420. Realistic fund/BTC/holding moves are well under ±100%,
-// so any |pct| > 100 signals a scaling regression upstream — fail loudly rather than
-// post wildly wrong numbers. (It cannot catch the opposite regression — raw ratios
-// like -0.042 — because a genuinely flat period is also near zero; that's the API's job.)
+// scale, -4.2 becomes -420. So any |pct| past the field's bound signals a scaling
+// regression upstream — fail loudly rather than post wildly wrong numbers. (It cannot
+// catch the opposite regression — raw ratios like -0.042 — because a genuinely flat
+// period is also near zero; that's the API's job.)
+//
+// Short-window moves (1-day, MTD) are well under ±100%, so they use the tight default.
+// Cumulative returns (YTD) are different: a leveraged BTC-treasury book can legitimately
+// print a triple-digit YTD in a bull run (e.g. +137%), and ±100 would crash on real
+// data. Those fields opt into the wider CUMULATIVE bound, which still trips the ×100 bug
+// for any realistic return (a real -16.18 YTD double-multiplied to -1618 exceeds ±1000).
+
+// Tight bound for short-window moves (1-day, MTD) — the common case.
+export const DEFAULT_MAX_ABS_PCT = 100;
+// Wider bound for cumulative returns (YTD): admits real triple-digit returns while
+// still catching a ×100 scaling regression on any non-trivial value.
+export const CUMULATIVE_MAX_ABS_PCT = 1000;
+
 export function assertPercentUnits(
   context: string,
-  fields: Array<[string, number | null | undefined]>
+  fields: Array<[string, number | null | undefined, number?]>
 ): void {
-  for (const [name, value] of fields) {
-    if (value != null && Math.abs(value) > 100) {
+  for (const [name, value, maxAbs = DEFAULT_MAX_ABS_PCT] of fields) {
+    if (value != null && Math.abs(value) > maxAbs) {
       throw new Error(
-        `${context} units check failed: ${name}=${value} exceeds ±100%. ` +
+        `${context} units check failed: ${name}=${value} exceeds ±${maxAbs}%. ` +
         `Expected a ×100-scaled percent (e.g. -4.2); likely a double-multiply upstream.`
       );
     }

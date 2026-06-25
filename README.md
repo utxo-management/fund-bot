@@ -1,6 +1,6 @@
 # 🤖 210k Fund Bot
 
-A Claude-powered Slack bot that provides conversational access to fund data from Google Sheets, plus automated daily reports for 210k Capital.
+A Claude-powered Slack bot that provides conversational access to fund data from the 210k terminal API, plus automated daily reports for 210k Capital.
 
 ## 🌟 Features
 
@@ -8,8 +8,7 @@ A Claude-powered Slack bot that provides conversational access to fund data from
 - **Daily Reports**: Automated morning (9 AM CT) and end-of-day (6 PM CT) reports
 - **Market Indicators**: Real-time Fear & Greed, MVRV, NUPL, Funding Rate, and 200W MA via Bitcoin Magazine Pro
 - **Thread Memory**: Maintains context within conversation threads for follow-up questions
-- **Real-time Data**: Fetches live data from Google Sheets on every query
-- **BTCTC Market Data**: Tracks Bitcoin treasury company performance
+- **Real-time Data**: Fetches live fund data from the 210k terminal API (the same source as the daily reports) and can fetch on demand via Claude tool-use
 
 ## 🏗️ Architecture
 
@@ -17,14 +16,14 @@ A Claude-powered Slack bot that provides conversational access to fund data from
 - **Hosting**: Vercel (serverless functions + cron jobs)
 - **Slack**: Bolt.js SDK for event handling
 - **AI**: Anthropic Claude Sonnet 4 for intelligent responses
-- **Data**: Google Sheets API for portfolio data
+- **Data**: 210k terminal API (`/api/brief`, `/api/morning-brief`) for all fund/holdings data; Bitcoin Magazine Pro for on-chain metrics
 
 ## 📋 Prerequisites
 
 Before you begin, you'll need:
 
 1. **Slack Workspace** with admin access
-2. **Google Cloud Project** with Sheets API enabled
+2. **210k terminal API access** — a `TERMINAL_API_URL` and a `BRIEF_API_KEY` (Bearer) that can read `/api/brief` and `/api/morning-brief`
 3. **Anthropic API Key** for Claude
 4. **Vercel Account** (free tier works)
 5. **Node.js 20+** and **npm** installed
@@ -81,17 +80,17 @@ Install the app to your workspace and copy the **Bot User OAuth Token** (starts 
 
 Go to **Basic Information** → **App Credentials** → Copy **Signing Secret**
 
-### 4. Configure Google Sheets
+### 4. Configure Terminal API Access
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable **Google Sheets API**
-4. Create credentials:
-   - **Service Account** with "Viewer" role
-   - Download JSON key file
+All fund/holdings data (for both the daily reports and the Q&A bot) comes from the
+210k terminal API. You need:
 
-5. Share your Google Sheets with the service account email (found in the JSON file)
-6. Get your Sheet IDs from the URL: `docs.google.com/spreadsheets/d/{SHEET_ID}/edit`
+1. `TERMINAL_API_URL` — the terminal base URL (e.g. `https://terminal.utxomanagement.com`)
+2. `BRIEF_API_KEY` — a Bearer token authorized to read `/api/brief` (EOD) and
+   `/api/morning-brief` (morning)
+
+These are the same two endpoints the daily reports already use. No Google Sheets
+setup is required.
 
 ### 5. Get Anthropic API Key
 
@@ -110,14 +109,15 @@ SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
 SLACK_APP_TOKEN=xapp-your-app-token  # For local dev only
 
-# Google Sheets
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@project.iam.gserviceaccount.com
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYourPrivateKeyHere\n-----END PRIVATE KEY-----\n"
-PORTFOLIO_SHEET_ID=your-portfolio-sheet-id
-BTCTC_SHEET_ID=your-btctc-sheet-id
+# Terminal API (fund/holdings data — both reports + the Q&A bot)
+TERMINAL_API_URL=https://terminal.utxomanagement.com
+BRIEF_API_KEY=your-brief-api-key
 
 # Anthropic
 ANTHROPIC_API_KEY=sk-ant-your-api-key
+
+# On-chain metrics (morning + EOD reports)
+BM_PRO_API_KEY=your-bitcoin-magazine-pro-key
 
 # Slack Channel IDs
 DAILY_REPORTS_CHANNEL_ID=C01234567890
@@ -126,6 +126,10 @@ ASK_FUNDBOT_CHANNEL_ID=C01234567891
 # Cron Secret (generate a random string)
 CRON_SECRET=your-random-secret-string
 ```
+
+> The `GOOGLE_*` / `PORTFOLIO_SHEET_ID` / `BTCTC_SHEET_ID` variables are no longer
+> required — the report and Q&A paths read from the terminal API. They remain only
+> for the orphaned `lib/sheets/*` debug modules and can be omitted.
 
 **How to get Slack Channel IDs:**
 1. Right-click a channel in Slack
@@ -161,25 +165,30 @@ Go to your Vercel project settings:
 
 ### Conversational Queries
 
-**In any channel (with @mention):**
+FundBot answers from the **210k terminal API** — the same source as the daily
+reports — and stamps every answer with an "as of" time. It can call tools to
+fetch live data on demand (`get_fund_summary`, `get_top_holdings`).
+
+**What it can answer today:**
 ```
 @FundBot What's our current AUM?
-@FundBot What's our BTC delta?
-@FundBot Top 5 holdings by weight?
+@FundBot How are we doing month-to-date? Year-to-date?
+@FundBot How are we doing versus Bitcoin? (alpha)
+@FundBot How much net cash do we have?
+@FundBot What's Bitcoin's price / 1-day / month-to-date move?
+@FundBot What are our top holdings and their weights?
+@FundBot Which top holdings moved today?
 ```
 
-**In DMs:**
-```
-What's our Metaplanet position worth?
-How are we doing MTD vs BTC?
-Which equity position has gained the most?
-```
+Works via `@mention` in any channel, in DMs, or by posting in `#ask-fundbot`.
 
-**In #ask-fundbot channel:**
-```
-What's Strategy's mNAV?
-Biggest BTCTC movers today?
-```
+**Not yet available** (the terminal does not currently expose these over the
+bot's API key — tracked for a follow-up; see the PR's deferred list):
+
+- Arbitrary per-ticker position lookups (e.g. "what's our Metaplanet position worth?")
+- The full position list / portfolio concentration beyond top holdings
+- Treasury-company (BTCTC) market data and mNAV (e.g. "biggest BTCTC movers", "Strategy's mNAV")
+- On-chain metrics in the Q&A path (these still appear in the daily reports)
 
 ### Daily Reports
 
@@ -241,8 +250,9 @@ fund-bot/
 │   └── health.ts
 ├── lib/                    # Core libraries
 │   ├── slack/              # Slack client and utilities
-│   ├── sheets/             # Google Sheets data fetching
-│   ├── claude/             # Claude AI integration
+│   ├── terminal/           # 210k terminal API clients (brief, morning-brief, summary)
+│   ├── sheets/             # Legacy Google Sheets modules (orphaned, not on the live path)
+│   ├── claude/             # Claude AI integration (incl. tool-use)
 │   ├── utils/              # Formatting and date utilities
 │   └── config.ts           # Environment configuration
 ├── config/                 # Configuration files
@@ -261,27 +271,26 @@ fund-bot/
 
 ## 📊 Data Sources
 
-### Portfolio Sheet
+### 210k Terminal API
 
-The bot expects the following tabs in your portfolio Google Sheet:
+All fund/holdings figures come from two read-only, Bearer-authed endpoints (the
+same ones the daily reports use):
 
-1. **Live Portfolio**: Current positions, prices, and values
-2. **Portfolio Metrics**: Summary metrics (AUM, delta, cash, etc.)
-3. **Portfolio Statistics**: Historical returns and performance metrics
-4. **Treasury Tracker**: Equity investments tracking
+- `GET /api/morning-brief` — AUM, fund MTD/YTD, net cash, BTC price, BTC MTD
+- `GET /api/brief` — fund/BTC 1-day change, top holdings (weight + 1-day)
 
-### BTCTC Sheet
+Both run the `assertPercentUnits` guard against the 100× scaling regression. See
+[docs/REPORTS.md](./docs/REPORTS.md) for the per-metric source table.
 
-Expected tabs:
+### Bitcoin Magazine Pro
 
-1. **Dashboard**: Bitcoin treasury company data (holdings, mNAV, prices)
-
-See the [Project Specification](./SPEC.md) for detailed cell references and data structure.
+On-chain metrics (Fear & Greed, MVRV, NUPL, funding rate, 200W MA) for the reports.
 
 ## 🔐 Security
 
 - All requests are verified using Slack's signature verification
-- Google service account has read-only access to sheets
+- Terminal API access is a read-only Bearer key (`BRIEF_API_KEY`); the key is never
+  placed in the model context or surfaced to users
 - Environment variables stored securely in Vercel
 - Cron endpoints protected with secret token
 
@@ -303,7 +312,7 @@ Monthly costs at ~100 queries/day:
 
 - Claude API: ~$30-50/mo
 - Vercel Pro: $20/mo (for cron jobs)
-- Google Sheets API: Free
+- Terminal API: internal (no per-call cost)
 - Slack: Free
 - **Market Indicators: Free** (Fear & Greed + DVOL)
 
@@ -322,11 +331,12 @@ Monthly costs at ~100 queries/day:
 1. Verify `SLACK_SIGNING_SECRET` matches your app
 2. Check that the request URL in Slack settings is correct
 
-### Google Sheets errors
+### Fund data errors ("trouble fetching fund data")
 
-1. Verify service account email is correct
-2. Check that sheets are shared with the service account
-3. Verify `GOOGLE_PRIVATE_KEY` is properly formatted (with `\n` newlines)
+1. Verify `TERMINAL_API_URL` and `BRIEF_API_KEY` are set and the key is authorized
+2. A 4xx/5xx from the terminal surfaces as a thrown error — check Vercel logs
+3. `units check failed` means a percent field exceeded its bound (a scaling
+   regression upstream, not a display bug) — see [docs/REPORTS.md](./docs/REPORTS.md)
 
 ### Cron jobs not running
 

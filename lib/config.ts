@@ -22,9 +22,16 @@ interface Config {
   anthropic: {
     apiKey: string;
   };
+  // Terminal API — the live data source for both daily reports and the Q&A bot.
+  terminal: {
+    apiUrl: string;
+    apiKey: string;
+  };
   bitcoinMagazinePro: {
     apiKey?: string;
   };
+  // Legacy Google Sheets config. No longer used by the report or Q&A paths
+  // (only the orphaned lib/sheets/* debug modules); may be empty.
   sheets: {
     portfolioSheetId: string;
     btctcSheetId: string;
@@ -39,14 +46,16 @@ interface Config {
 }
 
 function validateEnv(): Config {
+  // The Google Sheets vars are intentionally NOT required: the report and Q&A
+  // paths now read from the terminal API, so a deploy only needs the terminal
+  // credentials (+ Slack/Anthropic). The Google vars remain optional for the
+  // orphaned lib/sheets/* debug modules.
   const required = [
     'SLACK_BOT_TOKEN',
     'SLACK_SIGNING_SECRET',
-    'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-    'GOOGLE_PRIVATE_KEY',
     'ANTHROPIC_API_KEY',
-    'PORTFOLIO_SHEET_ID',
-    'BTCTC_SHEET_ID',
+    'TERMINAL_API_URL',
+    'BRIEF_API_KEY',
     'DAILY_REPORTS_CHANNEL_ID',
     'ASK_FUNDBOT_CHANNEL_ID',
   ];
@@ -67,18 +76,22 @@ function validateEnv(): Config {
       appToken: process.env.SLACK_APP_TOKEN,
     },
     google: {
-      serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
-      privateKey: process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+      serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
+      privateKey: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     },
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY!,
+    },
+    terminal: {
+      apiUrl: process.env.TERMINAL_API_URL!,
+      apiKey: process.env.BRIEF_API_KEY!,
     },
     bitcoinMagazinePro: {
       apiKey: process.env.BM_PRO_API_KEY,
     },
     sheets: {
-      portfolioSheetId: process.env.PORTFOLIO_SHEET_ID!,
-      btctcSheetId: process.env.BTCTC_SHEET_ID!,
+      portfolioSheetId: process.env.PORTFOLIO_SHEET_ID || '',
+      btctcSheetId: process.env.BTCTC_SHEET_ID || '',
     },
     channels: {
       dailyReportsId: process.env.DAILY_REPORTS_CHANNEL_ID!,
