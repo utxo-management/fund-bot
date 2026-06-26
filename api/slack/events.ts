@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../../lib/config';
 import { LISTEN_ALL_CHANNELS } from '../../config/channels';
 import { postMessage, addReaction } from '../../lib/slack/client';
+import { toSlackMrkdwn } from '../../lib/slack/mrkdwn';
 import { getFundSummary, type FundSummary } from '../../lib/terminal/summary';
 import { sendMessageWithTools } from '../../lib/claude/client';
 import { defaultDeps } from '../../lib/claude/tools';
@@ -291,7 +292,8 @@ async function handleEvent(event: any) {
       const cachedResponse = getCachedResponse(sanitizedText, contextHash);
       if (cachedResponse) {
         console.log('[Cache] Using cached response');
-        await postMessage(channel, cachedResponse, { thread_ts: threadId });
+        // Convert the LLM's markdown to Slack mrkdwn so bold/links/bullets render.
+        await postMessage(channel, toSlackMrkdwn(cachedResponse), { thread_ts: threadId });
         
         // Store in thread memory for continuity
         addMessageToThread(threadId, 'user', sanitizedText);
@@ -359,8 +361,9 @@ async function handleEvent(event: any) {
     }
 
     // Post response
+    // Convert the LLM's markdown to Slack mrkdwn so bold/links/bullets render.
     console.log('[Slack] Posting response to channel...');
-    await postMessage(channel, result.response, { thread_ts: threadId });
+    await postMessage(channel, toSlackMrkdwn(result.response), { thread_ts: threadId });
     console.log('[Slack] Response posted successfully');
 
     // Add checkmark reaction (ignore if already added)
