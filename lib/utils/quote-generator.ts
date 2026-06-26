@@ -4,6 +4,7 @@
  */
 
 import { getClaudeClient } from '../claude/client';
+import { config } from '../config';
 import { Quote } from './daily-quotes';
 
 /**
@@ -17,7 +18,7 @@ async function sendQuoteMessage(systemPrompt: string, userMessage: string): Prom
   const client = getClaudeClient();
   
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: config.anthropic.model,
     max_tokens: 4096, // Higher limit for generating many quotes
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],

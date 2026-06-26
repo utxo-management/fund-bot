@@ -21,6 +21,9 @@ interface Config {
   };
   anthropic: {
     apiKey: string;
+    // Model id is env-overridable so it can be updated without a code change
+    // (e.g. when a snapshot is retired). Defaults to the current Sonnet.
+    model: string;
   };
   // Terminal API — the live data source for both daily reports and the Q&A bot.
   terminal: {
@@ -81,6 +84,7 @@ function validateEnv(): Config {
     },
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY!,
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
     },
     terminal: {
       apiUrl: process.env.TERMINAL_API_URL!,

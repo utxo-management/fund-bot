@@ -39,7 +39,7 @@ Fund-Bot is a serverless application built with Node.js 20+ and TypeScript, depl
 ### Technology Stack
 
 - **Runtime**: Node.js 20+, TypeScript
-- **AI Model**: Claude Sonnet 4 (`claude-sonnet-4-20250514`)
+- **AI Model**: Claude Sonnet 4.6 (`claude-sonnet-4-6`, override via `ANTHROPIC_MODEL`)
 - **Hosting**: Vercel Serverless Functions
 - **Database**: Supabase (PostgreSQL)
 - **Data Source**: Google Sheets API
@@ -162,7 +162,7 @@ processMessage()    // Full message processing pipeline
 
 Handles communication with Claude API:
 
-- **Model**: Claude Sonnet 4 (`claude-sonnet-4-20250514`)
+- **Model**: Claude Sonnet 4.6 (`claude-sonnet-4-6`, override via `ANTHROPIC_MODEL`)
 - **Max tokens**: 2000 per response
 - **Retry logic**: 3 attempts with exponential backoff
 - **Retried errors**: HTTP 429/5xx, network timeouts, connection resets

@@ -14,7 +14,7 @@ import {
   type ToolDeps,
 } from './tools';
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = config.anthropic.model;
 const MAX_TOKENS = 2000;
 
 let anthropicClient: Anthropic | null = null;
