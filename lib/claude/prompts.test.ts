@@ -73,10 +73,13 @@ describe('buildSystemPrompt', () => {
     expect(p).not.toContain('TOP HOLDINGS');
   });
 
-  test('declares the availability limits (no per-ticker / btctc / on-chain)', () => {
+  test('advertises the now-live tools (per-ticker / full holdings / btctc / on-chain)', () => {
     const p = buildSystemPrompt({ summary: baseSummary });
-    expect(p).toContain('AVAILABILITY LIMITS');
-    expect(p.toLowerCase()).toContain('not available');
+    expect(p).toContain('get_holdings');
+    expect(p).toContain('get_position_by_ticker');
+    expect(p).toContain('get_btctc_company');
+    expect(p).toContain('get_btctc_movers');
+    expect(p).toContain('get_onchain_metrics');
   });
 
   test('buildQuickSystemPrompt matches the full builder', () => {

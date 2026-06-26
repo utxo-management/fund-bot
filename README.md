@@ -167,7 +167,9 @@ Go to your Vercel project settings:
 
 FundBot answers from the **210k terminal API** — the same source as the daily
 reports — and stamps every answer with an "as of" time. It can call tools to
-fetch live data on demand (`get_fund_summary`, `get_top_holdings`).
+fetch live data on demand (`get_fund_summary`, `get_top_holdings`,
+`get_holdings`, `get_position_by_ticker`, `get_btctc_company`,
+`get_btctc_movers`, `get_onchain_metrics`).
 
 **What it can answer today:**
 ```
@@ -178,17 +180,17 @@ fetch live data on demand (`get_fund_summary`, `get_top_holdings`).
 @FundBot What's Bitcoin's price / 1-day / month-to-date move?
 @FundBot What are our top holdings and their weights?
 @FundBot Which top holdings moved today?
+@FundBot What's our position in MSTR? How much of it do we own?
+@FundBot Show me our full holdings list
+@FundBot What's MSTR's mNAV? Show me the BTCTC movers today
+@FundBot What's the MVRV Z-Score / fear & greed / 200w MA right now?
 ```
 
 Works via `@mention` in any channel, in DMs, or by posting in `#ask-fundbot`.
 
-**Not yet available** (the terminal does not currently expose these over the
-bot's API key — tracked for a follow-up; see the PR's deferred list):
-
-- Arbitrary per-ticker position lookups (e.g. "what's our Metaplanet position worth?")
-- The full position list / portfolio concentration beyond top holdings
-- Treasury-company (BTCTC) market data and mNAV (e.g. "biggest BTCTC movers", "Strategy's mNAV")
-- On-chain metrics in the Q&A path (these still appear in the daily reports)
+Per-ticker / full-position / BTCTC / on-chain answers are backed by the
+terminal's API-key read endpoints (positions, BTCTC, on-chain) added in
+210k-Terminal PR #80.
 
 ### Daily Reports
 

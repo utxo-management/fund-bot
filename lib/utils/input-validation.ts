@@ -179,11 +179,24 @@ export function getHelpMessage(): string {
 • "What's BTC's 1-day move?"
 • "What's BTC month-to-date?"
 
+*🔎 Positions & Ownership:*
+• "What's our position in MSTR?"
+• "How much of MTPLF do we own?"
+• "Show me our full holdings list"
+
+*🏢 Treasury Companies (BTCTC):*
+• "What's MSTR's mNAV?"
+• "Show me the BTCTC movers today"
+
+*⛓️ On-chain & Market:*
+• "What's the MVRV Z-Score right now?"
+• "What's the fear & greed index?"
+• "What's BTC's 200-week moving average?"
+
 *💡 Tips:*
 • My data comes from the 210k terminal — the same source as the daily reports
 • Every answer is stamped with an "as of" time
 • I can remember context within a thread, so ask follow-ups
-• Not yet available: arbitrary per-ticker lookups, the full position list, treasury-company (BTCTC) data, and on-chain metrics
 
 Just ask me naturally - I'm here to help! 🚀`;
 }

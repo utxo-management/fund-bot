@@ -7,6 +7,7 @@ import { LISTEN_ALL_CHANNELS } from '../../config/channels';
 import { postMessage, addReaction } from '../../lib/slack/client';
 import { getFundSummary, type FundSummary } from '../../lib/terminal/summary';
 import { sendMessageWithTools } from '../../lib/claude/client';
+import { defaultDeps } from '../../lib/claude/tools';
 import { buildSystemPrompt } from '../../lib/claude/prompts';
 import { addMessageToThread, getThreadMessages, getThreadMessagesWithFallback, getThreadStats } from '../../lib/claude/memory';
 import {
@@ -322,7 +323,10 @@ async function handleEvent(event: any) {
     // degrades gracefully (Claude answers with what it has) rather than crashing.
     console.log('[Claude] Sending message to Claude API (tool-use)...');
     const result = await withTimeout(
+      // Override only getFundSummary with the per-request memoized fetcher; the
+      // positions / BTCTC / on-chain tools use the live terminal clients.
       sendMessageWithTools(systemPrompt, sanitizedText, conversationHistory, {
+        ...defaultDeps,
         getFundSummary: fetchFundSummary,
       }),
       TIMEOUTS.claude,
