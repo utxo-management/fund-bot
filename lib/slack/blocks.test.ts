@@ -14,6 +14,7 @@ describe('buildMorningReportBlocks — FUND BRIEF', () => {
     btc: { priceUsd: 64414.64 },
     fund: { aumUsd: 94638882.15, mtdPct: -4.2, ytdPct: -16.18, cashUsd: 4366855 },
     btcMtdPct: -12.54,
+    btcYtdPct: 137.02,
   };
   const fund = (b: MorningBrief = brief) => sectionText(buildMorningReportBlocks(b, null), 'FUND BRIEF');
 
@@ -28,6 +29,12 @@ describe('buildMorningReportBlocks — FUND BRIEF', () => {
     expect(t).toContain('Fund YTD: -16.18%');
     expect(t.indexOf('Fund MTD')).toBeLessThan(t.indexOf('Fund YTD'));
     expect(t.indexOf('Fund YTD')).toBeLessThan(t.indexOf('BTC MTD'));
+  });
+
+  test('renders BTC YTD directly under BTC MTD', () => {
+    const t = fund();
+    expect(t).toContain('BTC YTD: +137.02%');
+    expect(t.indexOf('BTC MTD')).toBeLessThan(t.indexOf('BTC YTD'));
   });
 
   test('renders dollar fields unscaled', () => {
@@ -51,8 +58,15 @@ describe('buildEodReportBlocks — Top Holdings', () => {
       { name: 'The Smarter Web Company PLC', ticker: 'SWC', weightPercent: 15.95, change1dPct: -4.88 },
       { name: 'Moon Inc', ticker: '1723', weightPercent: 15.15, change1dPct: 0 },
     ],
+    btcYtdPct: 137.02,
   };
   const holdings = (b: Brief = base) => sectionText(buildEodReportBlocks(b, null), '210K BRIEF');
+
+  test('renders BTC YTD in the 210K BRIEF, after BTC 1D', () => {
+    const t = holdings();
+    expect(t).toContain('BTC YTD: +137.02%');
+    expect(t.indexOf('BTC 1D')).toBeLessThan(t.indexOf('BTC YTD'));
+  });
 
   test('maps known tickers to short display names', () => {
     const t = holdings();

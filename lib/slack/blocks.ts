@@ -69,7 +69,8 @@ export function buildEodReportBlocks(
       `*210K BRIEF*\n\n` +
       `AUM: ${fmtUsd(brief.fund.aumUsd)}\n` +
       `Fund 1D: ${fmtPct(brief.fund.change1dPct)}\n` +
-      `BTC 1D: ${fmtPct(brief.btc.change1dPct)}\n\n` +
+      `BTC 1D: ${fmtPct(brief.btc.change1dPct)}\n` +
+      `BTC YTD: ${fmtPct(brief.btcYtdPct)}\n\n` +
       `*Top Holdings (1D):*\n${holdings}${footnote}`
     ),
     createDividerBlock(),
@@ -126,6 +127,7 @@ export function buildMorningReportBlocks(
       `Fund MTD: ${fmtPct(brief.fund.mtdPct)}\n` +
       `Fund YTD: ${fmtPct(brief.fund.ytdPct)}\n` +
       `BTC MTD: ${fmtPct(brief.btcMtdPct)}\n` +
+      `BTC YTD: ${fmtPct(brief.btcYtdPct)}\n` +
       `Cash: ${fmtUsd(brief.fund.cashUsd)}`
     )
   );

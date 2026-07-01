@@ -15,6 +15,7 @@ export interface MorningBrief {
     cashUsd: number | null;
   };
   btcMtdPct: number | null;
+  btcYtdPct: number | null;
 }
 
 export async function fetchMorningBrief(): Promise<MorningBrief> {
@@ -27,6 +28,7 @@ export async function fetchMorningBrief(): Promise<MorningBrief> {
     ['fund.mtdPct', brief.fund?.mtdPct, CUMULATIVE_MAX_ABS_PCT],
     ['fund.ytdPct', brief.fund?.ytdPct, CUMULATIVE_MAX_ABS_PCT],
     ['btcMtdPct', brief.btcMtdPct, CUMULATIVE_MAX_ABS_PCT],
+    ['btcYtdPct', brief.btcYtdPct, CUMULATIVE_MAX_ABS_PCT],
   ]);
 
   return brief;
